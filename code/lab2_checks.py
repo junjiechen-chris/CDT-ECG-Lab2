@@ -10,7 +10,7 @@ import numpy as np
 
 def _done(name, problems, fn, ref):
     if not problems:
-        print(f'{name}: check passed. The notebook uses your function from here on.')
+        print(f'{name}: check passed (matches the reference). The notebook uses your function from here on.')
         return fn
     print(f'{name}: NOT passed yet.')
     for p in problems:
@@ -29,6 +29,18 @@ def _call(problems, fn, *args, **kw):
     return None
 
 
+def _show(got, want, rows=3, label=''):
+    """Print the first few rows of the student's output next to the reference."""
+    fmt = lambda a: np.array2string(np.asarray(a)[:rows], precision=4, suppress_small=True, max_line_width=100)
+    print(f'  {label}yours:    {fmt(got)}')
+    print(f'  {label}expected: {fmt(want)}')
+    got, want = np.asarray(got), np.asarray(want)
+    if got.shape != want.shape:
+        print(f'  {label}shape: yours {got.shape}, expected {want.shape}')
+    elif np.issubdtype(got.dtype, np.number):
+        print(f'  {label}max |yours - expected| = {np.abs(got - want).max():.2e}')
+
+
 # ---------------------------------------------------------------- Task 2A: crop
 def reference_crop(x, length, train):
     x = np.asarray(x)
@@ -42,8 +54,10 @@ def check_crop(crop):
     problems = []
     x = np.arange(5000, dtype=float)
     out = _call(problems, crop, x, 3000, False)
-    if out is not None and not (len(out) == 3000 and np.array_equal(np.asarray(out), x[:3000])):
-        problems.append('with train=False a long signal must give its first `length` samples')
+    if out is not None:
+        _show(out, x[:3000], rows=8, label='train=False  ')
+        if not (len(out) == 3000 and np.array_equal(np.asarray(out), x[:3000])):
+            problems.append('with train=False a long signal must give its first `length` samples')
     starts = set()
     for _ in range(30):
         out = _call(problems, crop, x, 3000, True)
@@ -61,8 +75,12 @@ def check_crop(crop):
     short = np.arange(1, 101, dtype=float)
     for train in (False, True):
         out = _call(problems, crop, short, 3000, train)
-        if out is not None and not (len(out) == 3000 and np.array_equal(np.asarray(out)[:100], short)
-                                    and not np.asarray(out)[100:].any()):
+        if out is None:
+            break
+        if not train:
+            _show(out, np.pad(short, (0, 2900)), rows=8, label='short signal ')
+        if not (len(out) == 3000 and np.array_equal(np.asarray(out)[:100], short)
+                and not np.asarray(out)[100:].any()):
             problems.append(f'a short signal must be padded with zeros at the end to `length` (train={train})')
             break
     exact = np.arange(3000, dtype=float)
@@ -99,6 +117,7 @@ def check_predict_proba(predict_proba):
     got = _call(problems, predict_proba, model, signals, 3000)
     if got is not None:
         got = np.asarray(got)
+        _show(got, want)
         if got.shape != want.shape:
             problems.append(f'shape {got.shape}, expected {want.shape}: one row per signal, one column per class')
         elif not np.allclose(got.sum(1), 1, atol=1e-4):
@@ -124,6 +143,7 @@ def check_pool_windows(pool_windows):
     if out is not None:
         out = np.asarray(out)
         want = reference_pool_windows(E, 3)
+        _show(out, want)
         if out.shape != want.shape:
             problems.append(f'shape {out.shape}, expected {want.shape}: one row per item, [mean, SD] side by side')
         elif not np.allclose(out, want, atol=1e-6):
@@ -154,6 +174,7 @@ def check_linear_classifier(linear_classifier):
     if out is not None:
         out = np.asarray(out)
         want = reference_linear_classifier(E_tr, y_tr, E_ev)
+        _show(out, want)
         if out.shape != want.shape:
             problems.append(f'shape {out.shape}, expected {want.shape}: class probabilities, one row per item of E_eval')
         elif not np.allclose(out, want, atol=1e-4):
